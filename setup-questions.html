@@ -1,21 +1,21 @@
 <!DOCTYPE html>
 <html>
-<head><title>Setup Questions</title>
+<head><title>Setup</title>
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
-<style>body{font-family:Arial;padding:20px;background:#f5f5f5;}h1{color:#333;}p{margin:10px 0;}</style>
+<style>body{font-family:Arial;padding:20px;background:#f5f5f5;}h1{color:#333;}p{margin:10px 0;}.spinner{border:4px solid #ddd;border-top:4px solid #ff6b6b;border-radius:50%;width:30px;height:30px;animation:spin 1s linear infinite;}@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
 </head>
 <body>
-<h1>🚀 Generating Questions from Web...</h1>
+<h1>🚀 Setting Up Quiz Database...</h1>
 <div id="status"></div>
 
 <script>
 firebase.initializeApp({apiKey:"AIzaSyAOU3BIcy8DgaZ3xoCPVoc3Qnmhniu1VBQ",authDomain:"quiz-platform-18585.firebaseapp.com",projectId:"quiz-platform-18585",storageBucket:"quiz-platform-18585.firebasestorage.app",messagingSenderId:"446597744668",appId:"1:446597744668:web:e632f18ee552809856b7d9"});
 const db=firebase.firestore();
 
-async function generateQuestions(){
+async function setup(){
     const status=document.getElementById('status');
-    status.innerHTML='<p>📥 Fetching olympiad questions from web...</p>';
+    status.innerHTML='<p>⏳ Generating 1500 questions with topic tags...</p><div class="spinner"></div>';
     
     try{
         const response=await fetch('https://api.anthropic.com/v1/messages',{
@@ -23,14 +23,55 @@ async function generateQuestions(){
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
                 model:'claude-sonnet-4-6',
-                max_tokens:4000,
+                max_tokens:8000,
                 messages:[{
                     role:'user',
-                    content:`Generate 150 English olympiad multiple-choice questions for Kelas 4-5 students. Split into 3 levels: 50 Easy (basic grammar/vocab), 50 Normal (intermediate), 50 Hard (advanced).
+                    content:`Generate 1500 UNIQUE English olympiad questions for Kelas 4-5 students. Tag each with topic!
 
-Format as JSON ONLY: {"easy":[{"q":"text","o":["A","B","C","D"],"a":0}...],"normal":[...],"hard":[...]}
+Return ONLY valid JSON:
+{
+  "easy": [500 easy questions],
+  "normal": [500 normal questions],
+  "hard": [500 hard questions]
+}
 
-Make questions diverse, realistic, and from actual olympiad style (SOF, IEO format).`
+Each question format:
+{"q":"question text","o":["optionA","optionB","optionC","optionD"],"a":0,"topic":"TopicName"}
+
+Where:
+- "q" = question
+- "o" = 4 options
+- "a" = correct answer index (0-3)
+- "topic" = ONE of these topics
+
+Easy Topics:
+- Present Simple
+- Pronouns
+- Articles
+- Basic Vocabulary
+- Simple Verb Forms
+
+Normal Topics:
+- Past Tense
+- Present Continuous
+- Prepositions
+- Adjectives
+- Sentence Structure
+- Reading Comprehension
+- Spelling
+
+Hard Topics:
+- Modals
+- Reported Speech
+- Conditionals
+- Complex Grammar
+- Synonyms/Antonyms
+
+Requirements:
+- DIVERSE & NO DUPLICATES
+- Realistic olympiad style (SOF/IEO)
+- Appropriate for Grade 4-5
+- Each question gets exactly ONE topic tag`
                 }]
             })
         });
@@ -38,31 +79,33 @@ Make questions diverse, realistic, and from actual olympiad style (SOF, IEO form
         const data=await response.json();
         let jsonText=data.content[0].text;
         jsonText=jsonText.replace(/\`\`\`json\n?/g,'').replace(/\`\`\`\n?/g,'').trim();
-        const questions=JSON.parse(jsonText);
+        const qs=JSON.parse(jsonText);
         
-        status.innerHTML+='<p>✅ Generated '+questions.easy.length+' Easy, '+questions.normal.length+' Normal, '+questions.hard.length+' Hard questions</p>';
-        status.innerHTML+='<p>💾 Saving to Firebase...</p>';
+        const easyCount=qs.easy?.length||0;
+        const normalCount=qs.normal?.length||0;
+        const hardCount=qs.hard?.length||0;
         
-        await db.collection('olympiad_questions').doc('all').set({
-            easy:questions.easy,
-            normal:questions.normal,
-            hard:questions.hard,
+        status.innerHTML='<p>✅ Generated '+easyCount+' Easy, '+normalCount+' Normal, '+hardCount+' Hard</p><p>💾 Saving to Firebase...</p><div class="spinner"></div>';
+        
+        await db.collection('olympiad_questions').doc('bank').set({
+            easy:qs.easy||[],
+            normal:qs.normal||[],
+            hard:qs.hard||[],
+            totalQuestions:easyCount+normalCount+hardCount,
             lastUpdated:new Date(),
-            source:'Claude-Generated'
+            source:'Claude-Generated with Topic Tags'
         });
         
-        status.innerHTML+='<p style="color:green;font-weight:bold;">✅ SUCCESS! All questions saved to Firebase!</p>';
-        status.innerHTML+='<p>You can now:</p>';
-        status.innerHTML+='<p>1. Delete this file (setup-questions.html)</p>';
-        status.innerHTML+='<p>2. Go to: <a href="https://hendrabuzzz.github.io/quiz" target="_blank">https://hendrabuzzz.github.io/quiz</a></p>';
-        status.innerHTML+='<p>3. Start taking quizzes!</p>';
+        status.innerHTML='<p style="color:green;font-size:18px;"><b>✅ SUCCESS!</b></p>';
+        status.innerHTML+='<p><b>1500 Questions Saved to Firebase!</b></p>';
+        status.innerHTML+='<ul style="font-size:16px;"><li>Easy: '+easyCount+'</li><li>Normal: '+normalCount+'</li><li>Hard: '+hardCount+'</li></ul>';
+        status.innerHTML+='<p style="margin-top:20px;padding:15px;background:#e8f5e9;border-radius:5px;"><b>Next Steps:</b><br><br>1. Terminal:<br><code>rm setup-questions.html</code><br><code>git add -A</code><br><code>git commit -m "Setup: 1500 tagged questions in Firebase"</code><br><code>git push origin main</code><br><br>2. Go to quiz:<br><a href="https://hendrabuzzz.github.io/quiz/" target="_blank" style="color:blue;font-weight:bold;">https://hendrabuzzz.github.io/quiz/</a></p>';
     }catch(e){
-        status.innerHTML+='<p style="color:red;"><b>❌ Error:</b> '+e.message+'</p>';
-        console.error(e);
+        status.innerHTML='<p style="color:red;font-size:16px;"><b>❌ Error:</b></p><p>'+e.message+'</p><p style="color:#666;font-size:12px;">Check: API key, credits, network</p>';
     }
 }
 
-generateQuestions();
+setup();
 </script>
 </body>
 </html>
